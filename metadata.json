@@ -1,0 +1,6 @@
+{
+  "name": "وكلاء شبكة X SPORT",
+  "description": "منصة إدارة وتفعيل اشتراكات وباقات وكلاء شبكة X SPORT للبث الرياضي الرقمي والمحتوى الترفيهي",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
