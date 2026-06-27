@@ -7,11 +7,14 @@ import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -538,6 +541,7 @@ fun SubscribersListScreen(
     if (showRenewConfirmDialog != null) {
         val (subscriber, months) = showRenewConfirmDialog!!
         val durationLabel = when (months) {
+            1 -> "شهر واحد"
             3 -> "٣ أشهر"
             6 -> "٦ أشهر"
             12 -> "سنة كاملة (١٢ شهراً)"
@@ -680,7 +684,10 @@ fun SubscribersListScreen(
         calendar.add(Calendar.MONTH, months)
         val newEndDateStr = sdf.format(calendar.time)
 
-        val durationLabelText = "$months أشهر"
+        val durationLabelText = when (months) {
+            1 -> "شهر واحد"
+            else -> "$months أشهر"
+        }
         
         var messageText by remember(subscriber, months) {
             mutableStateOf(
@@ -767,6 +774,302 @@ fun SubscribersListScreen(
             containerColor = CardBackground,
             textContentColor = LightText,
             titleContentColor = Color.White
+        )
+    }
+
+    // 4.5 Custom Subscription Activation & Renewal Dialog
+    if (showCustomRenewDialog != null) {
+        val subscriber = showCustomRenewDialog!!
+        
+        var customStartDate by remember { 
+            mutableStateOf(
+                SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+            ) 
+        }
+        var customDurationText by remember { mutableStateOf("1") }
+        var customDurationType by remember { mutableStateOf("months") } // "months" or "days"
+        var customEndDate by remember { 
+            mutableStateOf(
+                viewModel.calculateEndDate(SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()), 1, "months")
+            ) 
+        }
+        var manualEditEndDate by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { showCustomRenewDialog = null },
+            title = {
+                Text(
+                    text = "تفعيل وتجديد الاشتراك ⚙️",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    textAlign = TextAlign.Right,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "المشترك: ${subscriber.name}",
+                        fontWeight = FontWeight.Bold,
+                        color = SportOrange,
+                        fontSize = 15.sp,
+                        textAlign = TextAlign.Right,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    HorizontalDivider(color = BorderColor)
+
+                    // Start Date
+                    Text(
+                        text = "تاريخ بدء الاشتراك الجديد:",
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp,
+                        color = MutedText,
+                        textAlign = TextAlign.Right,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = customStartDate,
+                        onValueChange = {
+                            customStartDate = it
+                            if (!manualEditEndDate) {
+                                val dur = customDurationText.toIntOrNull() ?: 1
+                                customEndDate = viewModel.calculateEndDate(it, dur, customDurationType)
+                            }
+                        },
+                        textStyle = androidx.compose.ui.text.TextStyle(textAlign = TextAlign.Right, color = Color.White),
+                        placeholder = { Text("yyyy-MM-dd", color = MutedText) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = SportOrange,
+                            unfocusedBorderColor = BorderColor,
+                            focusedContainerColor = DarkBackground,
+                            unfocusedContainerColor = DarkBackground
+                        )
+                    )
+
+                    // Quick start date buttons
+                    Row(
+                        horizontalArrangement = Arrangement.End,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        TextButton(
+                            onClick = {
+                                val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                                customStartDate = todayStr
+                                if (!manualEditEndDate) {
+                                    val dur = customDurationText.toIntOrNull() ?: 1
+                                    customEndDate = viewModel.calculateEndDate(todayStr, dur, customDurationType)
+                                }
+                            }
+                        ) {
+                            Text("اليوم 📅", fontSize = 11.sp, color = SportBlue)
+                        }
+                        
+                        Spacer(modifier = Modifier.width(8.dp))
+                        
+                        TextButton(
+                            onClick = {
+                                customStartDate = subscriber.endDate
+                                if (!manualEditEndDate) {
+                                    val dur = customDurationText.toIntOrNull() ?: 1
+                                    customEndDate = viewModel.calculateEndDate(subscriber.endDate, dur, customDurationType)
+                                }
+                            }
+                        ) {
+                            Text("من تاريخ انتهاء اشتراكه الحالي ⏱️", fontSize = 11.sp, color = SportAmber)
+                        }
+                    }
+
+                    // Duration and Duration Type
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        // Duration Type
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "نوع الباقة:",
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 13.sp,
+                                color = MutedText,
+                                textAlign = TextAlign.Right,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp)
+                                    .background(DarkBackground, RoundedCornerShape(8.dp))
+                                    .border(1.dp, BorderColor, RoundedCornerShape(8.dp))
+                                    .padding(4.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .background(
+                                            if (customDurationType == "months") SportOrange else Color.Transparent,
+                                            RoundedCornerShape(6.dp)
+                                        )
+                                        .clickable {
+                                            customDurationType = "months"
+                                            if (!manualEditEndDate) {
+                                                val dur = customDurationText.toIntOrNull() ?: 1
+                                                customEndDate = viewModel.calculateEndDate(customStartDate, dur, "months")
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "أشهر",
+                                        color = if (customDurationType == "months") Color.White else LightText,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .background(
+                                            if (customDurationType == "days") SportOrange else Color.Transparent,
+                                            RoundedCornerShape(6.dp)
+                                        )
+                                        .clickable {
+                                            customDurationType = "days"
+                                            if (!manualEditEndDate) {
+                                                val dur = customDurationText.toIntOrNull() ?: 1
+                                                customEndDate = viewModel.calculateEndDate(customStartDate, dur, "days")
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "أيام",
+                                        color = if (customDurationType == "days") Color.White else LightText,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        // Duration Text
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "المدة الزمنية:",
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 13.sp,
+                                color = MutedText,
+                                textAlign = TextAlign.Right,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = customDurationText,
+                                onValueChange = {
+                                    customDurationText = it
+                                    if (!manualEditEndDate) {
+                                        val dur = it.toIntOrNull() ?: 1
+                                        customEndDate = viewModel.calculateEndDate(customStartDate, dur, customDurationType)
+                                    }
+                                },
+                                textStyle = androidx.compose.ui.text.TextStyle(textAlign = TextAlign.Center, color = Color.White),
+                                singleLine = true,
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                    keyboardType = KeyboardType.Number
+                                ),
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = SportOrange,
+                                    unfocusedBorderColor = BorderColor,
+                                    focusedContainerColor = DarkBackground,
+                                    unfocusedContainerColor = DarkBackground
+                                )
+                            )
+                        }
+                    }
+
+                    // End Date (Custom Expiration date)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = { manualEditEndDate = !manualEditEndDate }) {
+                            Text(
+                                text = if (manualEditEndDate) "إلغاء القفل 🔓" else "تعديل يدوي 🔒",
+                                fontSize = 11.sp,
+                                color = if (manualEditEndDate) SportOrange else SportBlue
+                            )
+                        }
+                        Text(
+                            text = "تاريخ انتهاء الباقة المخصص:",
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 13.sp,
+                            color = MutedText,
+                            textAlign = TextAlign.Right
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = customEndDate,
+                        onValueChange = {
+                            if (manualEditEndDate) {
+                                customEndDate = it
+                            }
+                        },
+                        textStyle = androidx.compose.ui.text.TextStyle(textAlign = TextAlign.Right, color = Color.White),
+                        readOnly = !manualEditEndDate,
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        placeholder = { Text("yyyy-MM-dd", color = MutedText) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = SportOrange,
+                            unfocusedBorderColor = BorderColor,
+                            focusedContainerColor = if (manualEditEndDate) DarkBackground else CardBackground,
+                            unfocusedContainerColor = if (manualEditEndDate) DarkBackground else CardBackground
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val durationVal = customDurationText.toIntOrNull() ?: 1
+                        viewModel.updateSubscriberWithCustomPeriod(
+                            subscriber = subscriber,
+                            startDate = customStartDate,
+                            duration = durationVal,
+                            durationType = customDurationType,
+                            endDate = customEndDate,
+                            onSuccess = {
+                                Toast.makeText(context, "تم تحديث اشتراك المشترك ${subscriber.name} بنجاح! 🎉", Toast.LENGTH_SHORT).show()
+                                showCustomRenewDialog = null
+                            }
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SportOrange)
+                ) {
+                    Text("حفظ التحديث ✅", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCustomRenewDialog = null }) {
+                    Text(text = "إلغاء ❌", color = LightText)
+                }
+            },
+            containerColor = CardBackground,
+            titleContentColor = Color.White,
+            textContentColor = LightText
         )
     }
 
@@ -1382,6 +1685,12 @@ fun SubscriberCard(
                     )
                     
                     Spacer(modifier = Modifier.weight(1f))
+                    
+                    QuickRenewPill(
+                        label = "شهر ١",
+                        containerColor = TraditionalTeal,
+                        onClick = { onRenewClick(subscriber, 1) }
+                    )
                     
                     QuickRenewPill(
                         label = "٣ أشهر",
